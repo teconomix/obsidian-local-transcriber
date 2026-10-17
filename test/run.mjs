@@ -13,7 +13,7 @@ await build({ entryPoints: [join(here, "../src/transcript.ts")], outfile: out, f
 const T = await import(pathToFileURL(out));
 
 // 1. Redebeiträge = Python (Sollwerte erzeugt mit transcriber.render._turns, test/expected-turns.json)
-const doc = JSON.parse(readFileSync(join(here, "../../tests/fixtures/beispiel.transcript.json"), "utf8"));
+const doc = JSON.parse(readFileSync(join(here, "beispiel.transcript.json"), "utf8"));
 const expected = JSON.parse(readFileSync(join(here, "expected-turns.json"), "utf8"));
 const got = T.turns(doc, "Unklar").map((u) => ({ ...u, start: +u.start.toFixed(3), end: +u.end.toFixed(3) }));
 assert.deepEqual(got, expected);
