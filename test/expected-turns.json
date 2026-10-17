@@ -1,0 +1,32 @@
+[
+ {
+  "who": "Alex Muster",
+  "start": 0.0,
+  "end": 3.4,
+  "text": "Guten Morgen, wir besprechen heute das Budget."
+ },
+ {
+  "who": "Kim Beispiel (?)",
+  "start": 4.5,
+  "end": 8.4,
+  "text": "Gut, ich habe die Zahlen von ACME mitgebracht."
+ },
+ {
+  "who": "Sprecher C",
+  "start": 9.5,
+  "end": 10.9,
+  "text": "Kurze Frage dazu."
+ },
+ {
+  "who": "Alex Muster",
+  "start": 12.0,
+  "end": 14.4,
+  "text": "Gerne, dann fangen wir an."
+ },
+ {
+  "who": "Unklar",
+  "start": 15.5,
+  "end": 15.8,
+  "text": "ähm"
+ }
+]
