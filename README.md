@@ -53,7 +53,15 @@ As required by Obsidian's developer policies:
 ## Installation
 
 1. Install [Local Transcriber](https://transcriber.teconomix.net).
-2. In Obsidian: **Settings → Community plugins → Browse**, search for *Local Transcriber*, install and enable.
+2. Install the plugin. It has been submitted to Obsidian's plugin directory; until it is listed there, use one of these:
+   - **By hand:** download `main.js`, `manifest.json` and `styles.css` from the
+     [latest release](https://github.com/teconomix/obsidian-local-transcriber/releases/latest) into
+     `<your vault>/.obsidian/plugins/local-transcriber/`, then in Obsidian **Settings → Community plugins**, reload the
+     list and enable *Local Transcriber*.
+   - **With BRAT:** install the community plugin *BRAT*, then *Add beta plugin* →
+     `teconomix/obsidian-local-transcriber`.
+
+   Once it is listed: **Settings → Community plugins → Browse**, search for *Local Transcriber*.
 3. Optional: in the plugin settings, choose the notes folder and a people folder.
 
 ## Privacy note
