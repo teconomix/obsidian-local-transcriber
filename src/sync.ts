@@ -15,7 +15,8 @@ import { expand } from "./cli";
 import { status, t } from "./i18n";
 import type { Settings } from "./settings";
 import {
-	decide, fingerprint, knownNames, mergeParticipants, noteName, recordingDate, RENDER_VERSION, renderBlock, TranscriptDoc,
+	decide, Decision, fingerprint, knownNames, mergeParticipants, noteName, placeSummary, recordingDate, RENDER_VERSION, renderBlock,
+	renderSummary, TranscriptDoc,
 } from "./transcript";
 
 const ID = "transcriber-id";
@@ -110,7 +111,8 @@ export class Syncer {
 		if (!doc.job_id || !Array.isArray(doc.words)) return ["skipped", ""];
 		const prev = s.synced[doc.job_id];
 		let file = this.noteFor(doc.job_id, prev?.note);
-		const transcriptChanged = !prev || prev.mtime !== stat.mtimeMs || prev.json !== json;
+		const sum = s.summaries ? await this.readSummary(json) : null;    // Zusammenfassung des Kerns, falls vorhanden
+		const transcriptChanged = !prev || prev.mtime !== stat.mtimeMs || prev.json !== json || (sum?.mtime ?? 0) !== (prev.sumMtime ?? 0);
 		if (file && !transcriptChanged && !opt.rerender && !opt.discard) return ["unchanged", file.basename];
 		if (!file && prev && !opt.recreate) return ["skipped", ""];       // Notiz gelöscht: nicht wieder anlegen
 
@@ -127,7 +129,7 @@ export class Syncer {
 		if (!file) {
 			const folder = normalizePath(s.notesFolder);
 			await this.ensureFolder(folder);
-			file = await this.app.vault.create(this.free(normalizePath(`${folder}/${name}.md`)), block + "\n");
+			file = await this.app.vault.create(this.free(normalizePath(`${folder}/${name}.md`)), (sum ? sum.block + "\n\n" : "") + block + "\n");
 			await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
 				fm[ID] = doc.job_id;
 				const date = recordingDate(doc);
@@ -139,7 +141,8 @@ export class Syncer {
 				fm["tags"] = ["transcript"];
 			});
 			result = "created";
-			s.synced[doc.job_id] = { json, mtime: stat.mtimeMs, note: file.path, hash: fingerprint(block), name, people };
+			s.synced[doc.job_id] = { json, mtime: stat.mtimeMs, note: file.path, hash: fingerprint(block), name, people,
+				sumMtime: sum?.mtime, sumHash: sum ? fingerprint(sum.block) : undefined };
 			return [result, file.basename];
 		}
 
@@ -150,7 +153,13 @@ export class Syncer {
 			if (file.path !== target && !this.app.vault.getAbstractFileByPath(target)) await this.app.fileManager.renameFile(file, target);
 		}
 
-		result = await this.writeBlock(file, block, prev?.hash, !!opt.discard);
+		result = await this.writeBlock(file, (c) => decide(c, block, prev?.hash, !!opt.discard));
+		let sumHash = prev?.sumHash;
+		if (sum) {                                                    // eigener Abschnitt, eigener Schutz (transcript.ts placeSummary)
+			const r = await this.writeBlock(file, (c) => placeSummary(c, sum.block, prev?.sumHash, !!opt.discard));
+			if (r === "updated" || r === "unchanged") sumHash = fingerprint(sum.block);
+			if (r === "updated" && result === "unchanged") result = "updated";
+		}
 		await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
 			fm[ID] = doc.job_id;
 			fm["transcript"] = json;                                    // technischer Pfad (ändert sich beim Umbenennen)
@@ -160,24 +169,36 @@ export class Syncer {
 			}
 		});
 		const hash = result === "updated" || result === "unchanged" ? fingerprint(block) : prev?.hash;
-		s.synced[doc.job_id] = { json, mtime: stat.mtimeMs, note: file.path, hash, name, people };
+		s.synced[doc.job_id] = { json, mtime: stat.mtimeMs, note: file.path, hash, name, people, sumMtime: sum?.mtime, sumHash };
 		return [result, file.basename];
 	}
 
+	/** <name>.summary.md neben dem Transkript als Abschnitt (null: keine oder keine des Kerns). */
+	private async readSummary(json: string): Promise<{ block: string; mtime: number } | null> {
+		const f = json.replace(/\.transcript\.json$/, ".summary.md");
+		try {
+			const [st, text] = await Promise.all([fs.stat(f), fs.readFile(f, "utf8")]);
+			const block = renderSummary(text, { summary: t("Zusammenfassung", "Summary"), local: t("lokal", "local"), cloud: "Cloud" });
+			return block ? { block, mtime: st.mtimeMs } : null;
+		} catch {
+			return null;
+		}
+	}
+
 	/** Abschnitt schreiben – in einer geöffneten Notiz über den Editor (Cursor/Eingaben bleiben), sonst atomar per
-	 *  Vault.process. Entscheidung in transcript.ts `decide`. */
-	private async writeBlock(file: TFile, block: string, lastHash: string | undefined, discard: boolean): Promise<SyncResult> {
+	 *  Vault.process. Entscheidung in transcript.ts (`decide`, `placeSummary`). */
+	private async writeBlock(file: TFile, decideFor: (content: string) => Decision): Promise<SyncResult> {
 		const view = this.openView(file);
 		if (view) {
 			const ed = view.editor;
-			const d = decide(ed.getValue(), block, lastHash, discard);
+			const d = decideFor(ed.getValue());
 			if (d.kind !== "write") return d.kind;
 			ed.replaceRange(d.insert, ed.offsetToPos(d.from), ed.offsetToPos(d.to));
 			return "updated";
 		}
 		let r: SyncResult = "unchanged";
 		await this.app.vault.process(file, (data) => {
-			const d = decide(data, block, lastHash, discard);
+			const d = decideFor(data);
 			r = d.kind === "write" ? "updated" : d.kind;
 			return d.kind === "write" ? d.content : data;
 		});

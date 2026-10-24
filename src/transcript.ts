@@ -15,6 +15,13 @@ export interface Turn { who: string; start: number; end: number; text: string }
 
 export const START = "%% local-transcriber:start %%";
 export const END = "%% local-transcriber:end %%";
+/** Eigener Abschnitt für die Zusammenfassung (<name>.summary.md des Kerns), über dem Transkript. Getrennt geschützt:
+ *  Wer dort Aufgaben abhakt, hält damit nicht auch das Transkript an. */
+export const SUM_START = "%% local-transcriber:summary:start %%";
+export const SUM_END = "%% local-transcriber:summary:end %%";
+export interface Markers { start: string; end: string }
+const TRANSCRIPT: Markers = { start: START, end: END };
+export const SUMMARY: Markers = { start: SUM_START, end: SUM_END };
 /** Darstellungsversion: ändert sich das Aussehen der Notizen, schreibt der nächste Abgleich alle neu. */
 export const RENDER_VERSION = 2;
 
@@ -99,12 +106,41 @@ export function renderBlock(doc: TranscriptDoc, audioLink: string, L: Labels): s
 }
 
 /** Lage des erzeugten Abschnitts (Start- bis Ende-Markierung, einschließlich) oder null, wenn eine Markierung fehlt. */
-export function findBlock(content: string): { from: number; to: number; text: string } | null {
-	const s = content.indexOf(START);
+export function findBlock(content: string, m: Markers = TRANSCRIPT): { from: number; to: number; text: string } | null {
+	const s = content.indexOf(m.start);
 	if (s < 0) return null;
-	const e = content.indexOf(END, s + START.length);
+	const e = content.indexOf(m.end, s + m.start.length);
 	if (e < 0) return null;
-	return { from: s, to: e + END.length, text: content.slice(s, e + END.length) };
+	return { from: s, to: e + m.end.length, text: content.slice(s, e + m.end.length) };
+}
+
+/** Zusammenfassung (Inhalt von <name>.summary.md) → Abschnitt der Notiz. Die erste Zeile der Datei ist die
+ *  Kennzeichenzeile des Kerns (JSON im HTML-Kommentar) – daraus Name der Vorlage und lokal/Cloud. null = keine. */
+export function renderSummary(file: string, L: { summary: string; local: string; cloud: string }): string | null {
+	const nl = file.indexOf("\n");
+	const first = nl < 0 ? file : file.slice(0, nl);
+	const mark = "<!-- transcriber-summary ";
+	if (!first.startsWith(mark)) return null;
+	let meta: { name?: string; local?: boolean; model?: string } = {};
+	try {
+		meta = JSON.parse(first.slice(mark.length, first.lastIndexOf("-->"))) as typeof meta;
+	} catch {
+		return null;
+	}
+	const body = (nl < 0 ? "" : file.slice(nl + 1)).trim();
+	const head = `**${L.summary}${meta.name ? ` · ${meta.name}` : ""}** (${meta.local === false ? L.cloud : L.local}${meta.model ? ` · ${meta.model}` : ""})`;
+	return [SUM_START, head, "", body, SUM_END].join("\n");
+}
+
+/** Wo der Zusammenfassungs-Abschnitt hinkommt. Vorhanden → wie decide. Fehlt er: einfügen vor dem Transkript-
+ *  Abschnitt – außer das Plugin hatte schon einmal einen geschrieben (lastHash gesetzt), dann hat der Nutzer ihn
+ *  gelöscht und er bleibt weg (außer discard). Ohne Transkript-Abschnitt: nichts (Notiz gehört dem Nutzer). */
+export function placeSummary(content: string, block: string, lastHash: string | undefined, discard: boolean): Decision {
+	if (findBlock(content, SUMMARY)) return decide(content, block, lastHash, discard, SUMMARY);
+	const tr = findBlock(content);
+	if (!tr || (lastHash !== undefined && !discard)) return { kind: "no-markers" };
+	const insert = block + "\n\n";
+	return { kind: "write", content: content.slice(0, tr.from) + insert + content.slice(tr.from), from: tr.from, to: tr.from, insert };
 }
 
 /** Fingerabdruck eines Abschnitts (FNV-1a, 32 bit): erkennt Änderungen von Hand. Zeilenenden/Leerraum am Zeilenende
@@ -127,8 +163,9 @@ export type Decision =
 
 /** Was mit einer vorhandenen Notiz geschieht. lastHash: Fingerabdruck dessen, was das Plugin zuletzt geschrieben hat
  *  (undefined bei Notizen ohne gemerkten Stand). discard: ausdrücklicher Befehl „neu schreiben, Änderungen verwerfen“. */
-export function decide(content: string, block: string, lastHash: string | undefined, discard: boolean): Decision {
-	const found = findBlock(content);
+export function decide(content: string, block: string, lastHash: string | undefined, discard: boolean,
+	m: Markers = TRANSCRIPT): Decision {
+	const found = findBlock(content, m);
 	if (!found) {
 		if (!discard) return { kind: "no-markers" };
 		const head = content.replace(/\s*$/, "");

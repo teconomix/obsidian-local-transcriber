@@ -17,10 +17,14 @@ export interface Settings {
 	/** Pfad zur Transcriber-Kommandozeile. */
 	command: string;
 	autoSync: boolean;
+	/** Zusammenfassung des Kerns (<name>.summary.md) als eigener Abschnitt über dem Transkript. */
+	summaries: boolean;
 	/** Darstellungsversion der zuletzt geschriebenen Notizen (transcript.ts RENDER_VERSION). Intern. */
 	renderVersion: number;
 	/** Abgleich-Stand je Transkript (job_id → Pfad, Änderungszeit, Notiz). Intern. */
-	synced: Record<string, { json: string; mtime: number; note: string; hash?: string; name?: string; people?: string[] }>;
+	synced: Record<string, {
+		json: string; mtime: number; note: string; hash?: string; name?: string; people?: string[]; sumMtime?: number; sumHash?: string;
+	}>;
 }
 
 export const defaults = (): Settings => ({
@@ -29,6 +33,7 @@ export const defaults = (): Settings => ({
 	peopleFolder: "",
 	command: "~/.local/bin/transcriber",
 	autoSync: true,
+	summaries: true,
 	renderVersion: 0,
 	synced: {},
 });
@@ -66,6 +71,13 @@ export class LocalTranscriberSettingTab extends PluginSettingTab {
 			.setDesc(t("Beim Start und sobald sich im Transkript-Ordner etwas ändert.", "On startup and whenever the transcript folder changes."))
 			.addToggle((x) => x.setValue(s.autoSync)
 				.onChange(async (v) => { s.autoSync = v; await save(); this.plugin.restartWatcher(); }));
+
+		new Setting(containerEl)
+			.setName(t("Zusammenfassungen übernehmen", "Include summaries"))
+			.setDesc(t("Zusammenfassungen von Local Transcriber (Einstellungen › KI, lokal oder Cloud) erscheinen als eigener Abschnitt über dem Transkript. Abgehakte Aufgaben bleiben stehen.",
+				"Summaries from Local Transcriber (Settings › AI, local or cloud) appear as their own section above the transcript. Checked tasks stay as they are."))
+			.addToggle((x) => x.setValue(s.summaries)
+				.onChange(async (v) => { s.summaries = v; await save(); }));
 
 		new Setting(containerEl).setName(t("Erweitert", "Advanced")).setHeading();
 		new Setting(containerEl)

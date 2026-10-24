@@ -55,3 +55,23 @@ for (const c of doc.speakers) if (named.includes(c.name)) assert.ok(["sicher", "
 assert.equal(T.noteName({ ...doc, source: "/x/Budget: Q4/Plan #1.m4a" }), "Plan 1");
 assert.equal(T.noteName({ ...doc, source: "/x/2026-10-14 Budget: Q4 [final].m4a" }), "2026-10-14 Budget Q4 final");
 console.log("ok – Redebeiträge, Notiz-Entscheidungen, Teilnehmer, Namen");
+
+// 3. Zusammenfassung: eigener Abschnitt über dem Transkript, eigener Schutz (renderSummary, placeSummary)
+const file = '<!-- transcriber-summary {"name": "Protokoll", "local": true, "model": "qwen"} -->\n## Kernpunkte\n- A\n\n## Aufgaben\n- [ ] Kim: B\n';
+const L = { summary: "Zusammenfassung", local: "lokal", cloud: "Cloud" };
+const sum = T.renderSummary(file, L);
+assert.ok(sum.startsWith(T.SUM_START) && sum.endsWith(T.SUM_END));
+assert.ok(sum.includes("**Zusammenfassung · Protokoll** (lokal · qwen)") && sum.includes("- [ ] Kim: B"));
+assert.equal(T.renderSummary("eigene Notiz\n- x", L), null);                      // fremde .summary.md: nichts übernehmen
+const withT = `Oben\n\n${neu}\n`;
+d = T.placeSummary(withT, sum, undefined, false);                               // neu: vor das Transkript
+assert.equal(d.content, `Oben\n\n${sum}\n\n${neu}\n`);
+assert.equal(withT.slice(0, d.from) + d.insert + withT.slice(d.to), d.content);
+const sh = T.fingerprint(sum);
+assert.equal(T.placeSummary(d.content, sum, sh, false).kind, "unchanged");
+const ticked = d.content.replace("- [ ] Kim: B", "- [x] Kim: B");               // Aufgabe abgehakt …
+assert.equal(T.placeSummary(ticked, sum.replace("A", "A2"), sh, false).kind, "edited");   // … bleibt stehen
+assert.equal(T.decide(ticked, block("neuer"), T.fingerprint(neu), false).kind, "write");   // Transkript läuft weiter
+assert.equal(T.placeSummary(withT, sum, sh, false).kind, "no-markers");          // vom Nutzer gelöscht: nicht wieder
+assert.equal(T.placeSummary("Nur Text\n", sum, undefined, false).kind, "no-markers");      // ohne Transkript-Abschnitt nie
+console.log("ok");

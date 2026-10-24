@@ -1,7 +1,7 @@
 {
 	"id": "local-transcriber",
 	"name": "Local Transcriber",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"minAppVersion": "1.8.7",
 	"description": "Import meeting and call transcripts from Local Transcriber as notes, with speakers linked to people. Transcription runs on your Mac.",
 	"author": "Björn Rabethge",

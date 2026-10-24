@@ -20,9 +20,12 @@ Desktop only.
 - **Confirm all speaker matches** with one command.
 - **Transcribe audio files in your vault**: right-click an audio file › *Transcribe*, or use the command palette.
   The note embeds the audio, so you can play it in Obsidian.
+- **Summaries in the note:** when Local Transcriber has summarized a recording (Settings › AI in the app, with a local
+  model or a cloud provider of your choice), the summary appears as its own section above the transcript – key points,
+  decisions, action items as checkboxes. Checking off tasks there does not stop the transcript from updating.
+- **Summarize** (command palette, in a transcript note; needs Local Transcriber 0.9 or newer): pick a template – minutes, short summary, order (five-paragraph
+  format), supervision note, key statements, follow-up email or your own – and Local Transcriber writes it.
 - **Sync** on startup and whenever the transcript folder changes, or manually (ribbon icon, command palette).
-
-Use it with the AI plugin of your choice to summarize transcripts – the plugin itself sends nothing anywhere.
 
 ## Your edits
 
@@ -31,6 +34,7 @@ The note follows Local Transcriber only as long as you leave the transcript itse
 | You … | The plugin … |
 |---|---|
 | write above or below the transcript | never touches it |
+| check off tasks or edit the summary | keeps the summary as it is (the transcript keeps updating); delete the summary section to stop getting it |
 | edit the transcript (e.g. fix a misheard word) | stops updating it and tells you; the command *Rewrite transcript* brings the current version back (and discards your edits) |
 | delete one of the hidden `%% local-transcriber %%` marker lines | treats the note as yours: no further updates, never a second copy |
 | change properties (`date`, `event`, …) | keeps your values; it only adds new participants and removes participants it added itself that are no longer correct – entries you added stay |
@@ -48,7 +52,8 @@ As required by Obsidian's developer policies:
   inside your vault.
 - **External program:** to name speakers, confirm matches and transcribe files, the plugin runs Local Transcriber's
   command line tool (default `~/.local/bin/transcriber`, configurable). It runs locally.
-- **No network use, no telemetry, no account.**
+- **No network use, no telemetry, no account.** Summaries are written by Local Transcriber with the model you set up
+  there – locally by default; only if you choose a cloud provider in the app does the transcript leave your Mac.
 
 ## Installation
 

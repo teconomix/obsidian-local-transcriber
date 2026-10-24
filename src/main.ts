@@ -2,7 +2,7 @@ import { debounce, Menu, Notice, Plugin, TAbstractFile, TFile } from "obsidian";
 import { watch, FSWatcher } from "fs";
 import { expand, runTranscriber, TranscriberMissing } from "./cli";
 import { de, t } from "./i18n";
-import { NameModal, SpeakerModal } from "./modals";
+import { NameModal, SpeakerModal, TemplateModal, type Template } from "./modals";
 import { defaults, LocalTranscriberSettingTab, Settings } from "./settings";
 import { readDoc, Syncer } from "./sync";
 import type { Speaker } from "./transcript";
@@ -40,6 +40,16 @@ export default class LocalTranscriberPlugin extends Plugin {
 				const json = this.activeTranscript();
 				if (!json) return false;
 				if (!checking) void this.cli(["confirm", json], json, t("Zuordnungen bestätigt", "Matches confirmed"));
+				return true;
+			},
+		});
+		this.addCommand({
+			id: "summarize",
+			name: t("Zusammenfassen (Vorlage wählen)", "Summarize (choose template)"),
+			checkCallback: (checking) => {
+				const json = this.activeTranscript();
+				if (!json) return false;
+				if (!checking) void this.summarize(json);
 				return true;
 			},
 		});
@@ -91,7 +101,7 @@ export default class LocalTranscriberPlugin extends Plugin {
 		const later = debounce(() => void this.syncNow(false), 4000, true);
 		try {
 			this.watcher = watch(expand(this.settings.sourceFolder), { recursive: true }, (_e, name) => {
-				if (name && String(name).endsWith(".transcript.json")) later();
+				if (name && /\.(transcript\.json|summary\.md)$/.test(String(name))) later();
 			});
 		} catch (e) {
 			console.error("Local Transcriber: folder not watchable", e);
@@ -155,6 +165,31 @@ export default class LocalTranscriberPlugin extends Plugin {
 		} catch (e) {
 			this.fail(e);
 		}
+	}
+
+	/** Vorlage wählen → `transcriber summarize` mit dem Modell aus Local Transcriber (Einstellungen › KI). */
+	private async summarize(json: string): Promise<void> {
+		let templates: Template[];
+		try {
+			templates = JSON.parse(await runTranscriber(this.settings.command, ["summarize", "--templates", "--json"], de() ? "de" : "en")) as Template[];
+		} catch (e) {
+			this.fail(e);
+			return;
+		}
+		new TemplateModal(this.app, templates, (tpl) => void (async () => {
+			const notice = new Notice(t(`${tpl.name} wird erstellt …`, `Creating ${tpl.name} …`), 0);
+			try {
+				await runTranscriber(this.settings.command, ["summarize", json, "--template", tpl.id], de() ? "de" : "en");
+				const [r, note] = await this.syncer.syncOne(json);
+				await this.saveSettings();
+				new Notice(t(`${tpl.name} ist in „${note}“`, `${tpl.name} is in “${note}”`));
+				if (r === "edited") this.editedNotice(note);
+			} catch (e) {
+				this.fail(e);
+			} finally {
+				notice.hide();
+			}
+		})()).open();
 	}
 
 	private async transcribe(file: TFile): Promise<void> {

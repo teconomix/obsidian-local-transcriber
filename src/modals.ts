@@ -82,3 +82,27 @@ export class NameModal extends Modal {
 		this.contentEl.empty();
 	}
 }
+
+export interface Template { id: string; name: string; description: string; custom: boolean }
+
+/** Vorlage für die Zusammenfassung wählen (aus `transcriber summarize --templates --json`). */
+export class TemplateModal extends SuggestModal<Template> {
+	constructor(app: App, private templates: Template[], private onPick: (t: Template) => void) {
+		super(app);
+		this.setPlaceholder(t("Welche Vorlage?", "Which template?"));
+	}
+
+	getSuggestions(query: string): Template[] {
+		const q = query.toLowerCase();
+		return this.templates.filter((x) => `${x.name} ${x.description}`.toLowerCase().includes(q));
+	}
+
+	renderSuggestion(x: Template, el: HTMLElement): void {
+		el.createDiv({ text: x.name });
+		el.createEl("small", { text: x.description, cls: "local-transcriber-muted" });
+	}
+
+	onChooseSuggestion(x: Template): void {
+		this.onPick(x);
+	}
+}
