@@ -56,6 +56,31 @@ assert.equal(T.noteName({ ...doc, source: "/x/Budget: Q4/Plan #1.m4a" }), "Plan 
 assert.equal(T.noteName({ ...doc, source: "/x/2026-10-14 Budget: Q4 [final].m4a" }), "2026-10-14 Budget Q4 final");
 console.log("ok – Redebeiträge, Notiz-Entscheidungen, Teilnehmer, Namen");
 
+// 5. Aufnahmedatum: Kern (recorded) vor Dateiname vor Erstellzeitpunkt; Herkunft „transcript“ zählt nicht
+const handy = { ...doc, source: "/x/Handy/Kk 20. Mai um 18_18.m4a", created: "2026-10-30 09:00" };
+assert.equal(T.recordingDate(handy), "2026-10-30");                                                  // ältere Transkripte
+assert.equal(T.recordingDate({ ...handy, recorded: "2026-05-20 18:18", recorded_from: "metadata" }), "2026-05-20");
+assert.equal(T.recordingDate({ ...handy, source: "/x/2026-10-14 16-00 Runde.m4a", recorded: "2026-10-30 09:00", recorded_from: "transcript" }), "2026-10-14");
+assert.equal(T.recordingDate({ ...handy, source: "/x/2026-10-14 16-00 Runde.m4a" }), "2026-10-14");
+
+// 6. Kategorie: ergänzen, nie überschreiben
+assert.deepEqual(T.withCategory(undefined), ["[[Meetings]]"]);
+assert.deepEqual(T.withCategory(["[[Kunden]]"]), ["[[Kunden]]", "[[Meetings]]"]);
+assert.deepEqual(T.withCategory("[[Kunden]]"), ["[[Kunden]]", "[[Meetings]]"]);
+assert.equal(T.withCategory(["[[Meetings]]", "[[Kunden]]"]), null);
+console.log("ok – Aufnahmedatum, Kategorie");
+
+// 7. Notiz zum Kalendertermin: gleiches Datum, Titel ohne Sonderzeichen gleich, genau ein Treffer
+const call = { ...doc, source: "/x/2026-10-19 10-00 Abstimmung.m4a", event: { title: "nestr <> dG" } };
+const vault = ["Meetings/2026-10-19 nestr -- dG.md", "Meetings/2026-10-19 KI Staff.md", "Meetings/2026-10-20 nestr -- dG.md"];
+assert.equal(T.meetingNote(call, vault), "Meetings/2026-10-19 nestr -- dG.md");
+assert.equal(T.meetingNote({ ...call, source: "/x/2026-10-21 10-00 Abstimmung.m4a" }, vault), null);    // anderer Tag
+assert.equal(T.meetingNote({ ...call, event: { title: "nestr" } }, vault), null);                       // nur Teil des Titels
+assert.equal(T.meetingNote({ ...call, event: null }, vault), null);                                     // kein Termin
+assert.equal(T.meetingNote(call, [...vault, "Archiv/2026-10-19 nestr dG.md"]), null);                   // nicht eindeutig
+assert.equal(T.meetingNote({ ...call, event: { title: "???" } }, ["Meetings/2026-10-19 !.md"]), null);   // leerer Titel
+console.log("ok – Kalendernotiz");
+
 // 3. Zusammenfassung: eigener Abschnitt über dem Transkript, eigener Schutz (renderSummary, placeSummary)
 const file = '<!-- transcriber-summary {"name": "Protokoll", "local": true, "model": "qwen"} -->\n## Kernpunkte\n- A\n\n## Aufgaben\n- [ ] Kim: B\n';
 const L = { summary: "Zusammenfassung", local: "lokal", cloud: "Cloud" };

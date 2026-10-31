@@ -16,7 +16,7 @@ import { status, t } from "./i18n";
 import type { Settings } from "./settings";
 import {
 	decide, Decision, fingerprint, knownNames, mergeParticipants, noteName, placeSummary, recordingDate, RENDER_VERSION, renderBlock,
-	renderSummary, TranscriptDoc,
+	meetingNote, renderSummary, TranscriptDoc, withCategory,
 } from "./transcript";
 
 const ID = "transcriber-id";
@@ -129,7 +129,11 @@ export class Syncer {
 		if (!file) {
 			const folder = normalizePath(s.notesFolder);
 			await this.ensureFolder(folder);
+			// Notiz zum selben Termin (nicht eine der Transkript-Notizen) → Eigenschaft meeting
+			const meeting = meetingNote(doc, this.app.vault.getMarkdownFiles().map((f) => f.path).filter((p) => !p.startsWith(folder + "/")));
+			const meetingFile = meeting ? this.app.vault.getFileByPath(meeting) : null;
 			file = await this.app.vault.create(this.free(normalizePath(`${folder}/${name}.md`)), (sum ? sum.block + "\n\n" : "") + block + "\n");
+			const meetingLink = meetingFile ? `[[${this.app.metadataCache.fileToLinktext(meetingFile, file.path, true)}]]` : null;
 			await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
 				fm[ID] = doc.job_id;
 				const date = recordingDate(doc);
@@ -137,8 +141,11 @@ export class Syncer {
 				fm["duration"] = Math.max(1, Math.round(doc.duration / 60));
 				if (people.length) fm["participants"] = people;
 				if (doc.event?.title) fm["event"] = doc.event.title;
+				if (meetingLink && !fm["meeting"]) fm["meeting"] = meetingLink;
 				fm["transcript"] = json;
 				fm["tags"] = ["transcript"];
+				const cats = withCategory(fm["categories"]);
+				if (cats) fm["categories"] = cats;
 			});
 			result = "created";
 			s.synced[doc.job_id] = { json, mtime: stat.mtimeMs, note: file.path, hash: fingerprint(block), name, people,

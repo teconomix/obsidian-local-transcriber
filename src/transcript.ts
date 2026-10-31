@@ -8,6 +8,7 @@ export interface Speaker {
 export interface Attendee { name: string; me?: boolean; status?: string; type?: string }
 export interface TranscriptDoc {
 	job_id: string; source: string; duration: number; created: string; model: string; tracks: number;
+	recorded?: string | null; recorded_from?: string;
 	speakers: Speaker[]; words: Word[]; overlaps?: [number, number][];
 	event?: { title?: string; attendees?: Attendee[] } | null;
 }
@@ -74,11 +75,43 @@ export function knownNames(doc: TranscriptDoc): string[] {
 		.map((c) => c.name as string);
 }
 
-/** Datum der Aufnahme: aus dem Dateinamen („2026-10-14 16-00 …“), sonst aus dem Erstellzeitpunkt des Transkripts. */
+/** Datum der Aufnahme: vom Kern ermittelt (`recorded`, ab 0.13: Metadaten der Audiodatei, Termin, Dateiname), sonst aus
+ *  dem Dateinamen („2026-10-14 16-00 …“), zuletzt aus dem Erstellzeitpunkt des Transkripts. „transcript“ als Herkunft
+ *  heißt: der Kern fand nichts Besseres – dann hat der Dateiname noch Vorrang. */
 export function recordingDate(doc: TranscriptDoc): string | null {
-	const base = doc.source.split("/").pop() ?? "";
-	const m = /(\d{4}-\d{2}-\d{2})/.exec(base) ?? /(\d{4}-\d{2}-\d{2})/.exec(doc.created ?? "");
-	return m ? m[1]! : null;
+	const day = (s?: string | null) => /(\d{4}-\d{2}-\d{2})/.exec(s ?? "")?.[1] ?? null;
+	if (doc.recorded_from !== "transcript") {
+		const r = day(doc.recorded);
+		if (r) return r;
+	}
+	return day(doc.source.split("/").pop()) ?? day(doc.created);
+}
+
+/** Kategorie der Transkript-Notizen (Ordnungskonzept der Vault: Übersicht filtert auf diesen Link). */
+export const CATEGORY = "[[Meetings]]";
+
+/** categories um CATEGORY ergänzen; vorhandene Werte bleiben. null = schon enthalten. */
+export function withCategory(current: unknown): unknown[] | null {
+	const list: unknown[] = Array.isArray(current) ? current : typeof current === "string" && current ? [current] : [];
+	return list.includes(CATEGORY) ? null : [...list, CATEGORY];
+}
+
+/** Titel zum Vergleichen: nur Buchstaben und Ziffern, klein – Kalender-Werkzeuge ersetzen Sonderzeichen in
+ *  Dateinamen unterschiedlich („nestr <> dG“ → „nestr -- dG“). */
+const titleKey = (s: string) => s.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
+/** Notiz zum Kalendertermin („JJJJ-MM-TT Titel“, z. B. aus einer Kalender-Pipeline): gleiches Datum wie die Aufnahme,
+ *  gleicher Titel. Nur bei genau einem Treffer, sonst null. paths: Pfade der Markdown-Dateien der Vault. */
+export function meetingNote(doc: TranscriptDoc, paths: string[]): string | null {
+	const title = doc.event?.title, date = recordingDate(doc);
+	if (!title || !date) return null;
+	const want = titleKey(title);
+	if (!want) return null;
+	const hits = paths.filter((p) => {
+		const base = (p.split("/").pop() ?? "").replace(/\.md$/, "");
+		return base.startsWith(date + " ") && titleKey(base.slice(date.length + 1)) === want;
+	});
+	return hits.length === 1 ? hits[0]! : null;
 }
 
 export interface Labels {

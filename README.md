@@ -8,9 +8,12 @@ Desktop only.
 
 ## What it does
 
-- **One note per recording** in a folder of your choice (default `Transcriber`), with properties: `date`,
-  `duration` (minutes), `participants` (`[[links]]` to recognized speakers), `event` (calendar title),
-  `transcript` (path of the transcript file) and the tag `transcript`.
+- **One note per recording** in a folder of your choice (default `Transcriber`), with properties: `date` (day of the
+  recording – from the audio file's metadata with Local Transcriber 0.13 or newer, otherwise from the file name),
+  `duration` (minutes), `participants` (`[[links]]` to recognized speakers), `event` (calendar title), `meeting` (link
+  to a note named `YYYY-MM-DD <event title>` elsewhere in the vault, e.g. from a calendar plugin, if exactly one
+  exists), `categories` (`[[Meetings]]`, added to any existing values), `transcript` (path of the transcript file) and
+  the tag `transcript`.
 - **Transcripts stay current** until you take over: speaker names you assign later (in the app or here), a re-analysis
   or the app's automatic descriptive file name reach the note.
 - **Renamed recordings** keep their note: the note is renamed too, and links to it stay intact.
